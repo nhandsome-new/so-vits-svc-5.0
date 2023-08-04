@@ -28,7 +28,7 @@ def compute_spec(hps, filename, specname):
 def process_file(file):
     if file.endswith(".wav"):
         file = file[:-4]
-        compute_spec(hps.data, f"{wavPath}/{spks}/{file}.wav", f"{spePath}/{spks}/{file}.pt")
+        compute_spec(hps.data, f"{wavPath}/{spks}/wavs-16k/{file}.wav", f"{spePath}/{spks}/pitch/{file}.pt")
 
 def process_files_with_thread_pool(wavPath, spks, max_workers):
     files = os.listdir(f"./{wavPath}/{spks}")
@@ -51,8 +51,8 @@ if __name__ == "__main__":
     hps = OmegaConf.load("./configs/base.yaml")
 
     for spks in os.listdir(wavPath):
-        if os.path.isdir(f"./{wavPath}/{spks}"):
-            os.makedirs(f"./{spePath}/{spks}", exist_ok=True)
+        if os.path.isdir(f"./{wavPath}/{spks}/wavs-16k"):
+            os.makedirs(f"./{spePath}/{spks}/pitch", exist_ok=True)
             if args.thread_count == 0:
                 process_num = os.cpu_count()
             else:

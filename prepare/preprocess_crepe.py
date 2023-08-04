@@ -46,10 +46,10 @@ def compute_f0(filename, save, device):
 def process_file(file, wavPath, spks, pitPath, device):
     if file.endswith(".wav"):
         file = file[:-4]
-        compute_f0(f"{wavPath}/{spks}/{file}.wav", f"{pitPath}/{spks}/{file}.pit", device)
+        compute_f0(f"{wavPath}/{spks}/wavs-16k/{file}.wav", f"{pitPath}/{spks}/pitch/{file}.pit", device)
 
 def process_files_with_process_pool(wavPath, spks, pitPath, device, process_num=None):
-    files = [f for f in os.listdir(f"./{wavPath}/{spks}") if f.endswith(".wav")]
+    files = [f for f in os.listdir(f"{wavPath}/{spks}/wavs-16k") if f.endswith(".wav")]
 
     with ProcessPoolExecutor(max_workers=process_num) as executor:
         futures = {executor.submit(process_file, file, wavPath, spks, pitPath, device): file for file in files}
@@ -75,8 +75,8 @@ if __name__ == "__main__":
       set_start_method('spawn')
 
     for spks in os.listdir(wavPath):
-        if os.path.isdir(f"./{wavPath}/{spks}"):
-            os.makedirs(f"./{pitPath}/{spks}", exist_ok=True)
+        if os.path.isdir(f"{wavPath}/{spks}/wavs-16k"):
+            os.makedirs(f"{pitPath}/{spks}/pitch", exist_ok=True)
             print(f">>>>>>>>>>{spks}<<<<<<<<<<")
             if args.thread_count == 0:
                 process_num = os.cpu_count()

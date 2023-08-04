@@ -42,7 +42,7 @@ def load_part(model, saved_state_dict):
     return model
 
 
-def load_model(model, saved_state_dict):
+def load_model(model, saved_state_dict, prefix=None):
     if hasattr(model, 'module'):
         state_dict = model.module.state_dict()
     else:
@@ -50,14 +50,22 @@ def load_model(model, saved_state_dict):
     new_state_dict = {}
     for k, v in state_dict.items():
         try:
-            new_state_dict[k] = saved_state_dict[k]
+            if prefix is not None:
+                if not k.startswith(prefix):
+                    continue
+                k_ = k[len(prefix)+1:]
+            else:
+                k_ = k
+            new_state_dict[k] = saved_state_dict[k_]
         except:
-            print("%s is not in the checkpoint" % k)
+            print("%s is not in the checkpoint" % k_)
+            print("%s is not in the model" % k)
             new_state_dict[k] = v
+
     if hasattr(model, 'module'):
         model.module.load_state_dict(new_state_dict)
     else:
-        model.load_state_dict(new_state_dict)
+        model.load_state_dict(new_state_dict, strict=False)
     return model
 
 
@@ -77,9 +85,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
     model_d = Discriminator(hp).to(device)
 
     optim_g = torch.optim.AdamW(model_g.parameters(),
-                                lr=hp.train.learning_rate, betas=hp.train.betas, eps=hp.train.eps)
+                                lr=hp.train.learning_rate_g, betas=hp.train.betas, eps=hp.train.eps)
     optim_d = torch.optim.AdamW(model_d.parameters(),
-                                lr=hp.train.learning_rate, betas=hp.train.betas, eps=hp.train.eps)
+                                lr=hp.train.learning_rate_d, betas=hp.train.betas, eps=hp.train.eps)
 
     init_epoch = 1
     step = 0
@@ -118,6 +126,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         checkpoint = torch.load(hp.train.pretrain, map_location='cpu')
         load_model(model_g, checkpoint['model_g'])
         load_model(model_d, checkpoint['model_d'])
+        logger.info("Start from pretrain model: %s" % hp.train.pretrain)
 
     if chkpt_path is not None:
         if rank == 0:
@@ -133,9 +142,18 @@ def train(rank, args, chkpt_path, hp, hp_str):
         if rank == 0:
             if hp_str != checkpoint['hp_str']:
                 logger.warning("New hparams is different from checkpoint. Will use new.")
+                for param_group in optim_g.param_groups:
+                    param_group['lr'] = hp.train.learning_rate_g
+                for param_group in optim_d.param_groups:
+                    param_group['lr'] = hp.train.learning_rate_d
     else:
         if rank == 0:
             logger.info("Starting new training run.")
+    
+    if hp.train.pretrain_disc:
+        checkpoint = torch.load(hp.train.pretrain_disc, map_location='cpu')
+        load_model(model_d, checkpoint['mrd'], "MRD")
+        load_model(model_d, checkpoint['mpd'], "MPD")
 
     if args.num_gpus > 1:
         model_g = DistributedDataParallel(model_g, device_ids=[rank])
@@ -169,7 +187,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
         model_g.train()
         model_d.train()
 
-        for ppg, ppg_l, vec, pit, spk, spec, spec_l, audio, audio_l in loader:
+        for ppg, vec_l, vec, pit, spk, spec, spec_l, audio, audio_l in loader:
 
             ppg = ppg.to(device)
             vec = vec.to(device)
@@ -177,23 +195,65 @@ def train(rank, args, chkpt_path, hp, hp_str):
             spk = spk.to(device)
             spec = spec.to(device)
             audio = audio.to(device)
-            ppg_l = ppg_l.to(device)
+            vec_l = vec_l.to(device)
             spec_l = spec_l.to(device)
             audio_l = audio_l.to(device)
-
-            # generator
+            
+            # set weights update steps
+            update_step = False
+            if ((step + 1) % hp.train.accum_iter == 0) or (step + 1 == len(loader)):
+                update_step = True
+            disc_step = True if (step+1) % hp.train.disc_iter == 0 else False
+            freeze_step = True if step < hp.train.freeze_step else False
+            
             optim_g.zero_grad()
-
             fake_audio, ids_slice, z_mask, \
                 (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r), spk_preds = model_g(
-                    ppg, vec, pit, spec, spk, ppg_l, spec_l)
-
-
+                    ppg, vec, pit, spec, spk, vec_l, spec_l)
             audio = commons.slice_segments(
                 audio, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
+            
+            
+            # discriminator
+            optim_d.zero_grad()
+            disc_fake = model_d(fake_audio.detach())
+            disc_real = model_d(audio)
+            
+            loss_d = 0.
+            loss_d_real = 0.
+            loss_d_fake = 0.
+            loss_d_real_rev = 0.
+            
+            if disc_step:
+                for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
+                    # print(f"{score_real.min()=}",f"{score_real.max()=}")
+                    # print(f"{score_fake.min()=}",f"{score_fake.max()=}")
+                    loss_d_real += torch.mean(torch.pow(score_real - 1.0, 2))
+                    loss_d_fake += torch.mean(torch.pow(score_fake, 2))
+                    loss_d_real_rev += torch.mean(torch.pow(score_real, 2))
+                loss_d = loss_d_real + loss_d_fake
+                loss_d = loss_d / len(disc_fake)
+                loss_d = loss_d * hp.train.c_dis
+                
+                
+                loss_d_real = loss_d_real / len(disc_fake)
+                loss_d_fake = loss_d_fake / len(disc_fake)
+                loss_d_real_rev = loss_d_real_rev / len(disc_fake)
+                
+                loss_d.backward()
+                clip_grad_value_(model_d.parameters(),  None)
+                
+                if update_step:
+                    optim_d.step()
+            
+            
+            
+            
+            # generator
             # Spk Loss
-            spk_loss = spkc_criterion(spk, spk_preds, torch.Tensor(spk_preds.size(0))
-                                .to(device).fill_(1.0))
+            spk_loss = 0
+            # spkc_criterion(spk, spk_preds, torch.Tensor(spk_preds.size(0))
+            #                     .to(device).fill_(1.0)) * hp.train.c_spk
             # Mel Loss
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
             mel_real = stft.mel_spectrogram(audio.squeeze(1))
@@ -209,6 +269,7 @@ def train(rank, args, chkpt_path, hp, hp_str):
             for (_, score_fake) in disc_fake:
                 score_loss += torch.mean(torch.pow(score_fake - 1.0, 2))
             score_loss = score_loss / len(disc_fake)
+            score_loss = score_loss * hp.train.c_score
 
             # Feature Loss
             disc_real = model_d(audio)
@@ -217,46 +278,43 @@ def train(rank, args, chkpt_path, hp, hp_str):
                 for fake, real in zip(feat_fake, feat_real):
                     feat_loss += torch.mean(torch.abs(fake - real))
             feat_loss = feat_loss / len(disc_fake)
-            feat_loss = feat_loss * 2
+            feat_loss = feat_loss * hp.train.c_feat
 
             # Kl Loss
             loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
-            loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
+            loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl * 0.5
 
             # Loss
-            loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r * 0.5 + spk_loss * 2
+            if freeze_step:
+                loss_g = mel_loss
+            else:
+                loss_g = score_loss + feat_loss + mel_loss + stft_loss + loss_kl_f + loss_kl_r + spk_loss
             loss_g.backward()
             clip_grad_value_(model_g.parameters(),  None)
+            
+            # if update_step:
             optim_g.step()
-
-            # discriminator
-            optim_d.zero_grad()
-            disc_fake = model_d(fake_audio.detach())
-            disc_real = model_d(audio)
-
-            loss_d = 0.0
-            for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
-                loss_d += torch.mean(torch.pow(score_real - 1.0, 2))
-                loss_d += torch.mean(torch.pow(score_fake, 2))
-            loss_d = loss_d / len(disc_fake)
-
-            loss_d.backward()
-            clip_grad_value_(model_d.parameters(),  None)
-            optim_d.step()
-
+                            
             step += 1
             # logging
             loss_g = loss_g.item()
             loss_d = loss_d.item()
+            loss_d_real = loss_d_real.item()
+            loss_d_fake = loss_d_fake.item()
             loss_s = stft_loss.item()
             loss_m = mel_loss.item()
             loss_k = loss_kl_f.item()
             loss_r = loss_kl_r.item()
-            loss_i = spk_loss.item()
-
+            loss_i = spk_loss
+            loss_f = feat_loss.item()
             if rank == 0 and step % hp.log.info_interval == 0:
                 writer.log_training(
-                    loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss.item(), step)
+                    loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss.item(), loss_f, loss_i, step)
+                writer.log_training_disc(
+                    loss_d_real, loss_d_fake, loss_d_real_rev, step)
+                writer.log_lr(
+                    scheduler_g.get_last_lr()[0], scheduler_d.get_last_lr()[0], step
+                )
                 logger.info("epoch %d | g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
                     epoch, loss_g, loss_m, loss_s, loss_d, loss_k, loss_r, loss_i, step))
 

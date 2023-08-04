@@ -1,0 +1,64 @@
+[tool.poetry]
+name = "so-vits-5"
+version = "0.1.0"
+description = "Project template for ml"
+#license = "MIT"
+authors = ["Fusic Han"]
+maintainers = ["han <hanbs044@gmail.com>"]
+readme = "README.md"
+keywords = [
+    "Python",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: GPU :: NVIDIA CUDA",
+    #"License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Natural Language :: Japanese",
+    "Programming Language :: Python",
+    "Topic :: Software Development",
+]
+
+packages = [
+    { include = "src" },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.12"
+gdown = "^4.7.1"
+librosa = "0.9.1"
+numpy = "1.23.5"
+pandas = "^2.0.1"
+scikit-learn = "^1.2.1"
+scipy = "^1.10.0"
+soundfile = "0.12.1"
+tensorboard = "^2.13.0"
+torch = {url = "https://download.pytorch.org/whl/cu118/torch-2.0.0%2Bcu118-cp310-cp310-linux_x86_64.whl"}
+torchaudio = {url = "https://download.pytorch.org/whl/cu118/torchaudio-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl"}
+torchvision = {url = "https://download.pytorch.org/whl/cu118/torchvision-0.15.1%2Bcu118-cp310-cp310-linux_x86_64.whl"}
+tqdm = "^4.65.0"
+transformers = "^4.29.2"
+wasabi = "~0.10.1"
+pyworld = "^0.3.3"
+onnx = "^1.14.0"
+onnxsim = "^0.4.31"
+onnxoptimizer = "^0.3.13"
+matplotlib = "^3.7.1"
+lightning = "^2.0.3"
+gradio = "^3.36.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.3.0"
+isort = "^5.12.0"
+mdformat-gfm = "^0.3.5"
+mdformat-frontmatter = "^2.0.1"
+mdformat_footnote = "^0.1.1"
+flake8 = "^6.0.0"
+mypy = "^1.3.0"
+pytest-cov = "^4.1.0"
+ipykernel = "^6.23.3"
+
+[build-system]
+requires = ["poetry-core>=^1.0.0"]
+build-backend = "poetry.core.masonry.api"

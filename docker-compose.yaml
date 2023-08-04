@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  so-vits-5:
+    build:
+      context: .
+      args:
+      - uid=1001
+      - gid=1001
+      - username=mluser
+      - project_name=so-vits-5
+    container_name: so-vits-5
+    image: so-vits-5-image
+    shm_size: '24gb'
+    tty: true
+    volumes:
+      - /home/ubuntu/data:/data
+      - $PWD:/home/mluser/so-vits-5
+    command: '/bin/bash'
+    ports:
+      - 17081-17090:17081-17090
+    # runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [ gpu ]

@@ -15,10 +15,10 @@ def resample_wave(wav_in, wav_out, sample_rate):
 def process_file(file, wavPath, spks, outPath, sr):
     if file.endswith(".wav"):
         file = file[:-4]
-        resample_wave(f"{wavPath}/{spks}/{file}.wav", f"{outPath}/{spks}/{file}.wav", sr)
+        resample_wave(f"{wavPath}/{spks}/wav/{file}.wav", f"{outPath}/{spks}/wavs-16k/{file}.wav", sr)
 
 def process_files_with_thread_pool(wavPath, spks, outPath, sr, thread_num=None):
-    files = [f for f in os.listdir(f"./{wavPath}/{spks}") if f.endswith(".wav")]
+    files = [f for f in os.listdir(f"{wavPath}/{spks}/wav") if f.endswith(".wav")]
 
     with ThreadPoolExecutor(max_workers=thread_num) as executor:
         futures = {executor.submit(process_file, file, wavPath, spks, outPath, sr): file for file in files}
@@ -44,8 +44,8 @@ if __name__ == "__main__":
     assert args.sr == 16000 or args.sr == 32000
 
     for spks in os.listdir(wavPath):
-        if os.path.isdir(f"./{wavPath}/{spks}"):
-            os.makedirs(f"./{outPath}/{spks}", exist_ok=True)
+        if os.path.isdir(f"{wavPath}/{spks}/wav"):
+            os.makedirs(f"{outPath}/{spks}/wavs-16k", exist_ok=True)
             print(f">>>>>>>>>>{spks}<<<<<<<<<<")
             if args.thread_count == 0:
                 process_num = os.cpu_count()

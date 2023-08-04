@@ -10,7 +10,7 @@ def create_dataloader_train(hps, n_gpus, rank):
     train_sampler = DistributedBucketSampler(
         train_dataset,
         hps.train.batch_size,
-        [150, 300, 450],
+        [300, 450, 600],
         num_replicas=n_gpus,
         rank=rank,
         shuffle=True)

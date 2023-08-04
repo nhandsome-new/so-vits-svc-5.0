@@ -375,10 +375,11 @@ class SourceModuleHnNSF(torch.nn.Module):
 
         # to merge source harmonics into a single excitation
         self.l_tanh = torch.nn.Tanh()
-        self.register_buffer('merge_w', torch.FloatTensor([[
-            0.2942, -0.2243, 0.0033, -0.0056, -0.0020, -0.0046,
-            0.0221, -0.0083, -0.0241, -0.0036, -0.0581]]))
-        self.register_buffer('merge_b', torch.FloatTensor([0.0008]))
+        self.l_linear = torch.nn.Linear(harmonic_num + 1, 1)
+        # self.register_buffer('merge_w', torch.FloatTensor([[
+        #     0.2942, -0.2243, 0.0033, -0.0056, -0.0020, -0.0046,
+        #     0.0221, -0.0083, -0.0241, -0.0036, -0.0581]]))
+        # self.register_buffer('merge_b', torch.FloatTensor([0.0008]))
 
     def forward(self, x):
         """
@@ -388,7 +389,8 @@ class SourceModuleHnNSF(torch.nn.Module):
         """
         # source for harmonic branch
         sine_wavs = self.l_sin_gen(x)
-        sine_wavs = torch_nn_func.linear(
-            sine_wavs, self.merge_w) + self.merge_b
-        sine_merge = self.l_tanh(sine_wavs)
+        # sine_wavs = torch_nn_func.linear(
+        #     sine_wavs, self.merge_w) + self.merge_b
+        # sine_merge = self.l_tanh(sine_wavs)
+        sine_merge = self.l_tanh(self.l_linear(sine_wavs))
         return sine_merge

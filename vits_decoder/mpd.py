@@ -9,19 +9,30 @@ class DiscriminatorP(nn.Module):
 
         self.LRELU_SLOPE = hp.mpd.lReLU_slope
         self.period = period
-
+        self.d_mult = 1
+        
         kernel_size = hp.mpd.kernel_size
         stride = hp.mpd.stride
         norm_f = weight_norm if hp.mpd.use_spectral_norm == False else spectral_norm
 
         self.convs = nn.ModuleList([
-            norm_f(nn.Conv2d(1, 64, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-            norm_f(nn.Conv2d(64, 128, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-            norm_f(nn.Conv2d(128, 256, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-            norm_f(nn.Conv2d(256, 512, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-            norm_f(nn.Conv2d(512, 1024, (kernel_size, 1), 1, padding=(kernel_size // 2, 0))),
+            norm_f(nn.Conv2d(1, int(32*self.d_mult), (kernel_size, 1), (stride, 1), padding=(int(kernel_size-1)//2, 0))),
+            norm_f(nn.Conv2d(int(32*self.d_mult), int(128*self.d_mult), (kernel_size, 1), (stride, 1), padding=(int(kernel_size-1)//2, 0))),
+            norm_f(nn.Conv2d(int(128*self.d_mult), int(512*self.d_mult), (kernel_size, 1), (stride, 1), padding=(int(kernel_size-1)//2, 0))),
+            norm_f(nn.Conv2d(int(512*self.d_mult), int(1024*self.d_mult), (kernel_size, 1), (stride, 1), padding=(int(kernel_size-1)//2, 0))),
+            norm_f(nn.Conv2d(int(1024*self.d_mult), int(1024*self.d_mult), (kernel_size, 1), 1, padding=(2, 0))),
         ])
-        self.conv_post = norm_f(nn.Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
+        self.conv_post = norm_f(nn.Conv2d(int(1024*self.d_mult), 1, (3, 1), 1, padding=(1, 0)))
+
+        
+        # self.convs = nn.ModuleList([
+        #     norm_f(nn.Conv2d(1, 64, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
+        #     norm_f(nn.Conv2d(64, 128, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
+        #     norm_f(nn.Conv2d(128, 256, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
+        #     norm_f(nn.Conv2d(256, 512, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
+        #     norm_f(nn.Conv2d(512, 1024, (kernel_size, 1), 1, padding=(kernel_size // 2, 0))),
+        # ])
+        # self.conv_post = norm_f(nn.Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
 
     def forward(self, x):
         fmap = []

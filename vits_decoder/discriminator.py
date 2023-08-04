@@ -1,3 +1,6 @@
+# import sys
+# sys.path.append("/home/mluser/so-vits-5/vits_decoder")
+# print(sys.path)
 import torch
 import torch.nn as nn
 
@@ -22,17 +25,19 @@ class Discriminator(nn.Module):
 
 
 if __name__ == '__main__':
-    hp = OmegaConf.load('../config/base.yaml')
+    hp = OmegaConf.load('/home/mluser/so-vits-5/configs/base.yaml')
     model = Discriminator(hp)
 
     x = torch.randn(3, 1, 16384)
+    print("x", "-"*100)
     print(x.shape)
-
+    print("-"*100)
     output = model(x)
     for features, score in output:
+        print("-"*100)
         for feat in features:
-            print(feat.shape)
-        print(score.shape)
+            print("f",feat.shape)
+        print("s",score.shape)
 
     pytorch_total_params = sum(p.numel()
                                for p in model.parameters() if p.requires_grad)

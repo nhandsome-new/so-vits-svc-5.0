@@ -56,15 +56,15 @@ if __name__ == "__main__":
     random.shuffle(spkPaths)
 
     for spks in spkPaths:
-        if os.path.isdir(f"./{wavPath}/{spks}"):
-            os.makedirs(f"./{ppgPath}/{spks}", exist_ok=True)
+        if os.path.isdir(f"./{wavPath}/{spks}/wavs-16k"):
+            os.makedirs(f"./{ppgPath}/{spks}/whisper", exist_ok=True)
             print(f">>>>>>>>>>{spks}<<<<<<<<<<")
-            for file in os.listdir(f"./{wavPath}/{spks}"):
+            for file in os.listdir(f"./{wavPath}/{spks}/wavs-16k"):
                 if file.endswith(".wav"):
                     # print(file)
                     file = file[:-4]
-                    path_wav = f"{wavPath}/{spks}/{file}.wav"
-                    path_ppg = f"{ppgPath}/{spks}/{file}.ppg"
+                    path_wav = f"{wavPath}/{spks}/wavs-16k/{file}.wav"
+                    path_ppg = f"{ppgPath}/{spks}/whisper/{file}.ppg"
                     if os.path.isfile(f"{path_ppg}.npy"):
                         continue
                     pred_ppg(whisper, path_wav, path_ppg)

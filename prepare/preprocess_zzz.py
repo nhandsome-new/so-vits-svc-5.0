@@ -18,7 +18,7 @@ for _ in tqdm(dataset):
 sampler = DistributedBucketSampler(
     dataset,
     4,
-    [150, 300, 450],
+    [300, 450, 600],
     num_replicas=1,
     rank=0,
     shuffle=True)

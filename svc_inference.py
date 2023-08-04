@@ -8,6 +8,7 @@ from omegaconf import OmegaConf
 from scipy.io.wavfile import write
 from vits.models import SynthesizerInfer
 from pitch import load_csv_pitch
+from vits.utils import load_wav_to_torch, repeat_expand_2d
 
 
 def load_svc_model(checkpoint_path, model):
@@ -27,11 +28,11 @@ def load_svc_model(checkpoint_path, model):
 
 
 def main(args):
-    if (args.ppg == None):
-        args.ppg = "svc_tmp.ppg.npy"
-        print(
-            f"Auto run : python whisper/inference.py -w {args.wave} -p {args.ppg}")
-        os.system(f"python whisper/inference.py -w {args.wave} -p {args.ppg}")
+    # if (args.ppg == None):
+    #     args.ppg = "svc_tmp.ppg.npy"
+    #     print(
+    #         f"Auto run : python whisper/inference.py -w {args.wave} -p {args.ppg}")
+    #     os.system(f"python whisper/inference.py -w {args.wave} -p {args.ppg}")
 
     if (args.vec == None):
         args.vec = "svc_tmp.vec.npy"
@@ -55,20 +56,25 @@ def main(args):
     model.eval()
     model.to(device)
 
-    spk = np.load(args.spk)
-    spk = torch.FloatTensor(spk)
+    spk = torch.load(args.spk)
+    spk = torch.nn.functional.normalize(spk, dim=0)
 
-    ppg = np.load(args.ppg)
-    ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
+    # ppg = np.load(args.ppg)
+    ppg = np.zeros([10,10])
     ppg = torch.FloatTensor(ppg)
     # ppg = torch.zeros_like(ppg)
 
-    vec = np.load(args.vec)
-    vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
-    vec = torch.FloatTensor(vec)
-    # vec = torch.zeros_like(vec)
-
-    pit = load_csv_pitch(args.pit)
+    # pit = load_csv_pitch(args.pit)
+    f0, uv = np.load(args.pit, allow_pickle=True)
+    pit = f0 * uv
+    pit = pit.astype(np.float32)
+    # pit = torch.FloatTensor(pit)
+    
+    vec = torch.load(args.vec).squeeze(0)    # vec.shape = [1, 768, T] -> [768, T]
+    # interpolate content vectors
+    vec = repeat_expand_2d(vec, pit.shape[0], mode="nearest")
+    vec = vec.transpose(1,0)
+    
     print("pitch shift: ", args.shift)
     if (args.shift == 0):
         pass
@@ -90,10 +96,10 @@ def main(args):
     len_vec = vec.size()[0]
     len_ppg = ppg.size()[0]
     len_min = min(len_pit, len_vec)
-    len_min = min(len_min, len_ppg)
+    # len_min = min(len_min, len_ppg)
     pit = pit[:len_min]
     vec = vec[:len_min, :]
-    ppg = ppg[:len_min, :]
+    # ppg = ppg[:len_min, :]
 
     with torch.no_grad():
 
@@ -168,8 +174,8 @@ if __name__ == '__main__':
                         help="yaml file for config.")
     parser.add_argument('--model', type=str, required=True,
                         help="path of model for evaluation")
-    parser.add_argument('--wave', type=str, required=True,
-                        help="Path of raw audio.")
+    # parser.add_argument('--wave', type=str, required=True,
+    #                     help="Path of raw audio.")
     parser.add_argument('--spk', type=str, required=True,
                         help="Path of speaker.")
     parser.add_argument('--ppg', type=str,

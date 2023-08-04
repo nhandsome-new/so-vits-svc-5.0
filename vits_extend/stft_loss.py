@@ -8,6 +8,40 @@
 import torch
 import torch.nn.functional as F
 
+mel_basis = {}
+hann_window = {}
+
+def prepare_stdt(y, n_fft, hop_size, win_size, window, center=False):
+    if torch.min(y) < -1.07:
+        print("min value is ", torch.min(y))
+    if torch.max(y) > 1.07:
+        print("max value is ", torch.max(y))
+    global hann_window
+    dtype_device = str(y.dtype) + '_' + str(y.device)
+    wnsize_dtype_device = str(win_size) + '_' + dtype_device
+    if wnsize_dtype_device not in hann_window:
+        hann_window[wnsize_dtype_device] = torch.hann_window(win_size).to(dtype=y.dtype, device=y.device)
+
+    y = torch.nn.functional.pad(y.unsqueeze(1), (int((n_fft-hop_size)/2), int((n_fft-hop_size)/2)), mode='reflect')
+    y = y.squeeze(1)
+
+    # Complex Spectrogram :: (B, T) -> (B, Freq, Frame, RealComplex=2)
+    spec = torch.stft(
+        y,
+        n_fft,
+        hop_length=hop_size,
+        win_length=win_size,
+        window=hann_window[wnsize_dtype_device],
+        center=center,
+        pad_mode="reflect",
+        normalized=False,
+        onesided=True,
+        return_complex=False,
+    )
+
+    # Linear-frequency Linear-amplitude spectrogram :: (B, Freq, Frame, RealComplex=2) -> (B, Freq, Frame)
+    spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
+    return spec
 
 def stft(x, fft_size, hop_size, win_length, window):
     """Perform STFT and convert to magnitude spectrogram.
@@ -86,8 +120,8 @@ class STFTLoss(torch.nn.Module):
             Tensor: Spectral convergence loss value.
             Tensor: Log STFT magnitude loss value.
         """
-        x_mag = stft(x, self.fft_size, self.shift_size, self.win_length, self.window)
-        y_mag = stft(y, self.fft_size, self.shift_size, self.win_length, self.window)
+        x_mag = prepare_stdt(x, self.fft_size, self.shift_size, self.win_length, self.window)
+        y_mag = prepare_stdt(y, self.fft_size, self.shift_size, self.win_length, self.window)
         sc_loss = self.spectral_convergenge_loss(x_mag, y_mag)
         mag_loss = self.log_stft_magnitude_loss(x_mag, y_mag)
 

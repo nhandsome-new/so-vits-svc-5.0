@@ -9,15 +9,27 @@ class MyWriter(SummaryWriter):
         super(MyWriter, self).__init__(logdir)
         self.sample_rate = hp.data.sampling_rate
 
-    def log_training(self, g_loss, d_loss, mel_loss, stft_loss, k_loss, r_loss, score_loss, step):
+    def log_training(self, g_loss, d_loss, mel_loss, stft_loss, k_loss, r_loss, score_loss, loss_f, loss_i, step):
         self.add_scalar('train/g_loss', g_loss, step)
-        self.add_scalar('train/d_loss', d_loss, step)
+        if d_loss != 0:
+            self.add_scalar('train/d_loss', d_loss, step)
         
         self.add_scalar('train/score_loss', score_loss, step)
         self.add_scalar('train/stft_loss', stft_loss, step)
         self.add_scalar('train/mel_loss', mel_loss, step)
         self.add_scalar('train/kl_f_loss', k_loss, step)
         self.add_scalar('train/kl_r_loss', r_loss, step)
+        self.add_scalar('train/feature_loss', loss_f, step)
+        self.add_scalar('train/speaker_loss', loss_i, step)
+    
+    def log_training_disc(self, d_loss_real, d_loss_fake, loss_d_real_rev, step):
+        self.add_scalar('train/d_loss_real', d_loss_real, step)
+        self.add_scalar('train/loss_d_real_rev', loss_d_real_rev, step)
+        self.add_scalar('train/d_loss_fake', d_loss_fake, step)
+        
+    def log_lr(self, lr_g, lr_d, step):
+        self.add_scalar('lr_g', lr_g, step)
+        self.add_scalar('lr_d', lr_d, step)
 
     def log_validation(self, mel_loss, generator, discriminator, step):
         self.add_scalar('validation/mel_loss', mel_loss, step)

@@ -31,7 +31,7 @@ def pred_vec(model, wavPath, vecPath, device):
 def process_file(file):
     if file.endswith(".wav"):
         file = file[:-4]
-        pred_vec(hubert, f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec", device)
+        pred_vec(hubert, f"{wavPath}/{spks}/wavs-16k/{file}.wav", f"{vecPath}/{spks}/hubert/{file}.vec", device)
 
 
 if __name__ == "__main__":
@@ -55,22 +55,21 @@ if __name__ == "__main__":
         "hubert_pretrain", "hubert-soft-0d54a1f4.pt"), device)
 
     for spks in os.listdir(wavPath):
-        if os.path.isdir(f"./{wavPath}/{spks}"):
-            os.makedirs(f"./{vecPath}/{spks}", exist_ok=True)
+        if os.path.isdir(f"{wavPath}/{spks}/wavs-16k"):
+            os.makedirs(f"{vecPath}/{spks}/hubert", exist_ok=True)
             print(f">>>>>>>>>>{spks}<<<<<<<<<<")
             if args.thread_count == 1:
-                for file in os.listdir(f"./{wavPath}/{spks}"):
+                for file in os.listdir(f"{wavPath}/{spks}/wavs-16k"):
                     if file.endswith(".wav"):
-                        print(file)
                         file = file[:-4]
-                        pred_vec(hubert, f"{wavPath}/{spks}/{file}.wav", f"{vecPath}/{spks}/{file}.vec", device)
+                        pred_vec(hubert, f"{wavPath}/{spks}/wavs-16k/{file}.wav", f"{vecPath}/{spks}/hubert/{file}.vec", device)
             else:
                 if args.thread_count == 0:
                     process_num = os.cpu_count()
                 else:
                     process_num = args.thread_count
                 with ThreadPoolExecutor(max_workers=process_num) as executor:
-                    futures = [executor.submit(process_file, file) for file in os.listdir(f"./{wavPath}/{spks}")]
+                    futures = [executor.submit(process_file, file) for file in os.listdir(f"{wavPath}/{spks}")]
                     for future in tqdm(as_completed(futures), total=len(futures)):
                         pass
                 # with Pool(processes=process_num) as pool:

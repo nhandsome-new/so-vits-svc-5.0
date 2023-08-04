@@ -19,6 +19,7 @@ class DiscriminatorR(torch.nn.Module):
             norm_f(nn.Conv2d(32, 32, (3, 9), stride=(1, 2), padding=(1, 4))),
             norm_f(nn.Conv2d(32, 32, (3, 3), padding=(1, 1))),
         ])
+        
         self.conv_post = norm_f(nn.Conv2d(32, 1, (3, 3), padding=(1, 1)))
 
     def forward(self, x):

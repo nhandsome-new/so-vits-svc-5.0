@@ -107,13 +107,14 @@ class Generator(torch.nn.Module):
 
         # post conv
         self.activation_post = SnakeAlias(ch)
-        self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)
+        self.conv_post = weight_norm(Conv1d(ch, 1, 7, 1, padding=3, bias=False))
         # weight initialization
         self.ups.apply(init_weights)
+        self.conv_post.apply(init_weights)
 
     def forward(self, spk, x, f0):
         # Perturbation
-        x = x + torch.randn_like(x)
+        x = x + torch.randn_like(x) * 0.5
         # adapter
         x = self.adapter(x, spk)
         x = self.conv_pre(x)
@@ -138,7 +139,6 @@ class Generator(torch.nn.Module):
                 else:
                     xs += self.resblocks[i * self.num_kernels + j](x)
             x = xs / self.num_kernels
-
         # post conv
         x = self.activation_post(x)
         x = self.conv_post(x)
@@ -192,7 +192,6 @@ class Generator(torch.nn.Module):
                 else:
                     xs += self.resblocks[i * self.num_kernels + j](x)
             x = xs / self.num_kernels
-
         # post conv
         x = self.activation_post(x)
         x = self.conv_post(x)

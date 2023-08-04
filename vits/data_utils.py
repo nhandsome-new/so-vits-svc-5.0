@@ -5,7 +5,7 @@ import torch
 import torch.utils.data
 
 
-from vits.utils import load_wav_to_torch
+from vits.utils import load_wav_to_torch, repeat_expand_2d
 
 
 def load_filepaths(filename, split="|"):
@@ -38,11 +38,11 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
                 continue
             if not os.path.isfile(vec):
                 continue
-            if not os.path.isfile(ppg):
-                continue
+            # if not os.path.isfile(ppg):
+            #     continue
             if not os.path.isfile(spk):
                 continue
-            temp = np.load(pitch)
+            temp, _ = np.load(pitch, allow_pickle=True)
             usel = int(temp.shape[0] - 1)  # useful length
             if (usel < items_min):
                 continue
@@ -56,8 +56,8 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
     def read_wav(self, filename):
         audio, sampling_rate = load_wav_to_torch(filename)
         assert sampling_rate == self.sampling_rate, f"error: this sample rate of {filename} is {sampling_rate}"
-        audio_norm = audio / self.max_wav_value
-        audio_norm = audio_norm.unsqueeze(0)
+        # audio_norm = audio / self.max_wav_value
+        audio_norm = audio.unsqueeze(0)
         return audio_norm
 
     def __getitem__(self, index):
@@ -79,49 +79,56 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
 
         wav = self.read_wav(wav)
         spe = torch.load(spe)
+        vec = torch.load(vec).squeeze(0)    # vec.shape = [1, 768, T] -> [768, T]
 
-        pit = np.load(pit)
-        vec = np.load(vec)
-        vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
-        ppg = np.load(ppg)
-        ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
-        spk = np.load(spk)
+        f0, uv = np.load(pit, allow_pickle=True)
+        pit = f0 * uv
+        pit = pit.astype(np.float32)
+        # vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
+        ppg = np.zeros([10,10])
+        # ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
+        spk = torch.load(spk)
+        spk = torch.nn.functional.normalize(spk, dim=0)
 
         pit = torch.FloatTensor(pit)
-        vec = torch.FloatTensor(vec)
+        # vec = torch.FloatTensor(vec)
         ppg = torch.FloatTensor(ppg)
-        spk = torch.FloatTensor(spk)
-
+        
+        # interpolate content vectors
+        vec = repeat_expand_2d(vec, pit.shape[0], mode="nearest")
+        vec = vec.transpose(1,0)
+        
+        # spk = torch.FloatTensor(spk)
         len_pit = pit.size()[0]
         len_vec = vec.size()[0] - 2 # for safe
         len_ppg = ppg.size()[0] - 2 # for safe
         len_min = min(len_pit, len_vec)
-        len_min = min(len_min, len_ppg)
+        # len_min = min(len_min, len_ppg)
         len_wav = len_min * self.hop_length
 
         pit = pit[:len_min]
         vec = vec[:len_min, :]
-        ppg = ppg[:len_min, :]
+        # ppg = ppg[:len_min, :]
         spe = spe[:, :len_min]
         wav = wav[:, :len_wav]
         if len_min > use:
-            max_frame_start = ppg.size(0) - use - 1
+            max_frame_start = pit.size(0) - use - 1
             frame_start = random.randint(0, max_frame_start)
             frame_end = frame_start + use
 
             pit = pit[frame_start:frame_end]
             vec = vec[frame_start:frame_end, :]
-            ppg = ppg[frame_start:frame_end, :]
+            # ppg = ppg[frame_start:frame_end, :]
             spe = spe[:, frame_start:frame_end]
 
             wav_start = frame_start * self.hop_length
             wav_end = frame_end * self.hop_length
             wav = wav[:, wav_start:wav_end]
-        # print(spe.shape)
-        # print(wav.shape)
-        # print(ppg.shape)
-        # print(pit.shape)
-        # print(spk.shape)
+        # print("s",spe.shape)
+        # print("w",wav.shape)
+        # print("v",vec.shape)
+        # print("f",pit.shape)
+        # print("sk",spk.shape)
         return spe, wav, ppg, vec, pit, spk
 
 
@@ -150,12 +157,14 @@ class TextAudioSpeakerCollate:
         wav_padded.zero_()
 
         max_ppg_len = max([x[2].size(0) for x in batch])
-        ppg_lengths = torch.FloatTensor(len(batch))
+        max_vec_len = max([x[3].size(0) for x in batch])
+        max_pit_len = max([x[4].size(0) for x in batch])
+        vec_lengths = torch.FloatTensor(len(batch))
         ppg_padded = torch.FloatTensor(
             len(batch), max_ppg_len, batch[0][2].size(1))
         vec_padded = torch.FloatTensor(
-            len(batch), max_ppg_len, batch[0][3].size(1))
-        pit_padded = torch.FloatTensor(len(batch), max_ppg_len)
+            len(batch), max_vec_len, batch[0][3].size(1))
+        pit_padded = torch.FloatTensor(len(batch), max_pit_len)
         ppg_padded.zero_()
         vec_padded.zero_()
         pit_padded.zero_()
@@ -174,26 +183,29 @@ class TextAudioSpeakerCollate:
 
             ppg = row[2]
             ppg_padded[i, : ppg.size(0), :] = ppg
-            ppg_lengths[i] = ppg.size(0)
+            # ppg_lengths[i] = ppg.size(0)
 
             vec = row[3]
             vec_padded[i, : vec.size(0), :] = vec
+            vec_lengths[i] = vec.size(0)
 
             pit = row[4]
             pit_padded[i, : pit.size(0)] = pit
 
             spk[i] = row[5]
-        # print(ppg_padded.shape)
-        # print(ppg_lengths.shape)
-        # print(pit_padded.shape)
-        # print(spk.shape)
-        # print(spe_padded.shape)
-        # print(spe_lengths.shape)
-        # print(wav_padded.shape)
-        # print(wav_lengths.shape)
+         
+        # print(vec_padded.shape)     # torch.Size([10, 560, 256])
+        # print(vec_lengths.shape)    # torch.Size([10])
+        # print(pit_padded.shape)     # torch.Size([10, 560])       # pit: [len]
+        # print(spk.shape)            # torch.Size([10, 512])       # spk: [256]
+        # print(spe_padded.shape)     # torch.Size([10, 513, 560])  # mel: [freq, length]
+        # print(spe_lengths.shape)    # torch.Size([10])
+        # print(wav_padded.shape)     # torch.Size([10, 1, 143360]) # wav: [1, length]
+        # print(wav_lengths.shape)    # torch.Size([10])
+        
         return (
             ppg_padded,
-            ppg_lengths,
+            vec_lengths,
             vec_padded,
             pit_padded,
             spk,
