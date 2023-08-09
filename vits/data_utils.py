@@ -87,7 +87,7 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         # vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
         ppg = np.zeros([10,10])
         # ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
-        spk = torch.load(spk)
+        spk = torch.load(spk).squeeze(0)
         spk = torch.nn.functional.normalize(spk, dim=0)
 
         pit = torch.FloatTensor(pit)
