@@ -13,8 +13,8 @@ from omegaconf import OmegaConf
 def compute_spec(hps, filename, specname):
     audio, sampling_rate = utils.load_wav_to_torch(filename)
     assert sampling_rate == hps.sampling_rate, f"{sampling_rate} is not {hps.sampling_rate}"
-    audio_norm = audio / hps.max_wav_value
-    audio_norm = audio_norm.unsqueeze(0)
+    # audio_norm = audio / hps.max_wav_value
+    audio_norm = audio.unsqueeze(0)
     n_fft = hps.filter_length
     sampling_rate = hps.sampling_rate
     hop_size = hps.hop_length
@@ -28,10 +28,10 @@ def compute_spec(hps, filename, specname):
 def process_file(file):
     if file.endswith(".wav"):
         file = file[:-4]
-        compute_spec(hps.data, f"{wavPath}/{spks}/wavs-16k/{file}.wav", f"{spePath}/{spks}/pitch/{file}.pt")
+        compute_spec(hps.data, f"{wavPath}/{spks}/wav/{file}.wav", f"{spePath}/{spks}/spec/{file}.pt")
 
 def process_files_with_thread_pool(wavPath, spks, max_workers):
-    files = os.listdir(f"./{wavPath}/{spks}")
+    files = os.listdir(f"{wavPath}/{spks}/wav")
     with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
         list(tqdm(executor.map(process_file, files), total=len(files)))
 
@@ -51,8 +51,8 @@ if __name__ == "__main__":
     hps = OmegaConf.load("./configs/base.yaml")
 
     for spks in os.listdir(wavPath):
-        if os.path.isdir(f"./{wavPath}/{spks}/wavs-16k"):
-            os.makedirs(f"./{spePath}/{spks}/pitch", exist_ok=True)
+        if os.path.isdir(f"{wavPath}/{spks}/wav"):
+            os.makedirs(f"{spePath}/{spks}/spec", exist_ok=True)
             if args.thread_count == 0:
                 process_num = os.cpu_count()
             else:
