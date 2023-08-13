@@ -6,7 +6,7 @@ import numpy as np
 
 from omegaconf import OmegaConf
 from scipy.io.wavfile import write
-from vits.models import SynthesizerInfer
+from vits.models_content_aug import SynthesizerInfer
 from pitch import load_csv_pitch
 from vits.utils import load_wav_to_torch, repeat_expand_2d
 

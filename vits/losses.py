@@ -77,3 +77,11 @@ def kl_loss_back(z_p, logs_q, m_p, logs_p, z_mask):
     kl = torch.sum(kl * z_mask)
     l = kl / torch.sum(z_mask)
     return l
+
+
+def content_emb_loss(c, c_hat):
+    c_hat = c_hat.detach()
+    c = c / torch.norm(c, p=2, dim=-2, keepdim=True)
+    c_hat = c_hat / torch.norm(c_hat, p=2, dim=-2, keepdim=True)
+    cosine_similarity = torch.nn.functional.cosine_similarity(c, c_hat, dim=-2).mean()
+    return 1 - cosine_similarity
