@@ -6,3 +6,7 @@ ckpt/*
 logs/*
 __pycache__/
 bigvgan_base_22khz_80band/
+files/*
+tmp/*
+*.wav
+*.out
