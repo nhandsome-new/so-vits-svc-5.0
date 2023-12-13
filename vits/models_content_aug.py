@@ -189,7 +189,7 @@ class SynthesizerTrn(nn.Module):
 
     def forward(self, ppg, vec, pit, spec, spk, vec_l, spec_l):
         # ppg = ppg + torch.randn_like(ppg) * 1  # Perturbation
-        vec = vec + torch.randn_like(vec) * 0.5  # Perturbation
+        # vec = vec + torch.randn_like(vec) * 0.5  # Perturbation
         g = self.emb_g(F.normalize(spk)).unsqueeze(-1)
         z_p, m_p, logs_p, ppg_mask, emb_c = self.enc_p(
             vec, vec_l, f0=f0_to_coarse(pit))
@@ -208,12 +208,19 @@ class SynthesizerTrn(nn.Module):
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r), emb_c
 
     def infer(self, ppg, vec, pit, spk, vec_l):
-        vec = vec + torch.randn_like(vec) * 0.0001  # Perturbation
+        # vec = vec + torch.randn_like(vec) * 0.0001  # Perturbation
         z_p, _, _, ppg_mask, _ = self.enc_p(
             vec, vec_l, f0=f0_to_coarse(pit))
         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True)
         o = self.dec(spk, z * ppg_mask, f0=pit)
         return o
+    
+    def freeze_modules(self, module_list=["emb_g", "emb_p", "enc_q", "flow"]):
+        print(f"Freeze modules : {module_list}")
+        for name, param in self.named_parameters():
+            module_name, sub = name.split(".")[0], name.split(".")[1]
+            if module_name in module_list and sub != "bias":
+                param.requires_grad = False
 
 
 class SynthesizerInfer(nn.Module):

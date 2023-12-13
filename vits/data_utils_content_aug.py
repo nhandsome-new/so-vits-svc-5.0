@@ -3,6 +3,7 @@ import numpy as np
 import random
 import torch
 import torch.utils.data
+import torchaudio
 
 from vits.utils import load_wav_to_torch, repeat_expand_2d
 from pathlib import Path
@@ -53,7 +54,9 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         self.lengths = lengths
 
     def read_wav(self, filename):
-        audio, sampling_rate = load_wav_to_torch(filename)
+        # audio, sampling_rate = load_wav_to_torch(filename)
+        audio, sampling_rate = torchaudio.load(filename)
+        audio = audio.squeeze(0)
         assert sampling_rate == self.sampling_rate, f"error: this sample rate of {filename} is {sampling_rate}"
         # audio_norm = audio / self.max_wav_value
         audio_norm = audio.unsqueeze(0)

@@ -84,14 +84,12 @@ def main(args):
         source_ave = source.mean()
         source_min = source.min()
         source_max = source.max()
-        
         print(f"source pitch statics: mean={source_ave:0.1f}, \
                 min={source_min:0.1f}, max={source_max:0.1f}")
         shift = args.shift
         shift = 2 ** (shift / 12)
         pit = pit * shift
-    # print(pit)
-    # xxx
+
     pit = torch.FloatTensor(pit)
 
     len_pit = pit.size()[0]

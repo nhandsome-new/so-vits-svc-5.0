@@ -90,6 +90,9 @@ def train(rank, args, chkpt_path, hp, hp_str):
     optim_d = torch.optim.AdamW(model_d.parameters(),
                                 lr=hp.train.learning_rate_d, betas=hp.train.betas, eps=hp.train.eps)
 
+    if hp.train.freeze_module:
+        model_g.freeze_modules()
+    
     init_epoch = 1
     step = 0
 

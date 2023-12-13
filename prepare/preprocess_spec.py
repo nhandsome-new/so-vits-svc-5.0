@@ -8,10 +8,13 @@ from tqdm import tqdm
 from vits import spectrogram
 from vits import utils
 from omegaconf import OmegaConf
+import torchaudio
 
 
 def compute_spec(hps, filename, specname):
-    audio, sampling_rate = utils.load_wav_to_torch(filename)
+    # audio, sampling_rate = utils.load_wav_to_torch(filename)
+    audio, sampling_rate = torchaudio.load(filename)
+    audio = audio.squeeze(0)
     assert sampling_rate == hps.sampling_rate, f"{sampling_rate} is not {hps.sampling_rate}"
     # audio_norm = audio / hps.max_wav_value
     audio_norm = audio.unsqueeze(0)
@@ -28,7 +31,10 @@ def compute_spec(hps, filename, specname):
 def process_file(file):
     if file.endswith(".wav"):
         file = file[:-4]
+        # try:
         compute_spec(hps.data, f"{wavPath}/{spks}/wav/{file}.wav", f"{spePath}/{spks}/spec/{file}.pt")
+        # except:
+        #     print(f"Fail: {file}")
 
 def process_files_with_thread_pool(wavPath, spks, max_workers):
     files = os.listdir(f"{wavPath}/{spks}/wav")
